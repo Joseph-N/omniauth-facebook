@@ -2,6 +2,7 @@ require 'omniauth/strategies/oauth2'
 require 'base64'
 require 'openssl'
 require 'rack/utils'
+require 'cgi'
 
 module OmniAuth
   module Strategies
@@ -12,7 +13,6 @@ module OmniAuth
 
       option :client_options, {
         :site => 'https://graph.facebook.com',
-        :authorize_url => "https://www.facebook.com/dialog/oauth",
         :token_url => '/oauth/access_token'
       }
 
@@ -36,7 +36,7 @@ module OmniAuth
           'name' => raw_info['name'],
           'first_name' => raw_info['first_name'],
           'last_name' => raw_info['last_name'],
-          'image' => image_url(uid, options),
+          'image' => image_url(uid,options),
           'description' => raw_info['bio'],
           'urls' => {
             'Facebook' => raw_info['link'],
@@ -113,7 +113,7 @@ module OmniAuth
       end
 
       ##
-      # You can pass +display+, +state+, +scope+, or +auth_type+ params to the auth request, if
+      # You can pass +display+, +state+ or +scope+ params to the auth request, if
       # you need to set them dynamically. You can also set these options
       # in the OmniAuth config :authorize_params option.
       #
@@ -121,7 +121,7 @@ module OmniAuth
       #
       def authorize_params
         super.tap do |params|
-          %w[display state scope auth_type].each do |v|
+          %w[display state scope].each do |v|
             if request.params[v]
               params[v.to_sym] = request.params[v]
 
@@ -217,20 +217,23 @@ module OmniAuth
         value += '=' * (4 - value.size.modulo(4))
         Base64.decode64(value.tr('-_', '+/'))
       end
-
+      
+      
       def image_url uid, options
-        uri_class = options[:secure_image_url] ? URI::HTTPS : URI::HTTP
-        url = uri_class.build({:host => 'graph.facebook.com', :path => "/#{uid}/picture"})
-
         query = if options[:image_size].is_a?(String)
           { :type => options[:image_size] }
         elsif options[:image_size].is_a?(Hash)
           options[:image_size]
         end
-        url.query = Rack::Utils.build_query(query) if query
+        url = build_url("https://graph.facebook.com/","#{uid}/picture",query) if query
 
         url.to_s
       end
+      
+      def build_url(domain,path,params)
+        return domain + "#{path}?".concat(params.collect { |k,v| "#{k}=#{CGI::escape(v.to_s)}" }.join('&')) if not params.nil?
+      end
+      
     end
   end
 end
